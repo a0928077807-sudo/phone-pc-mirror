@@ -221,10 +221,13 @@ def audio_tick():
 
 def watcher():
     comtypes.CoInitialize()
-    last_restart = 0
+    last_restart = last_tunnel = 0
     while True:
         try:
-            if live.wanted and not (live.running() and live.tunnel_up()) and time.time() - last_restart > 5:
+            if not live.tunnel_up() and time.time() - last_tunnel > 10:
+                live.ensure_tunnel()
+                last_tunnel = time.time()
+            if live.wanted and not live.running() and time.time() - last_restart > 5:
                 log.warning("live ffmpeg exited, restarting: %s",
                             livemod.FF_LOG.read_text(encoding="utf-8", errors="replace")[-300:])
                 live.keepalive()

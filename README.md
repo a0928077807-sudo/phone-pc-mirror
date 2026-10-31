@@ -71,8 +71,9 @@ python tools/autopair.py
 
 ## 遠端直播
 
-直播走一條**專用**的 Cloudflare Tunnel，只在按下「開始直播」時連上，停播就斷，
-沒在播的時候外面連不進來。
+直播走一條**專用**的 Cloudflare Tunnel，控制頁開著就一直連著。對方可以先打開網址輸入密碼等著，
+還沒開播會顯示「直播还没开始」，一開播畫面就自動出現。（只在直播時才連通道的話，對方提早打開只會看到
+Cloudflare 的 1033 錯誤頁，不知道發生什麼事。）
 
 ```powershell
 cloudflared tunnel login

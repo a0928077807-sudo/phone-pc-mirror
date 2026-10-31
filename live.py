@@ -25,7 +25,7 @@ HLS = WEB / "hls"
 FFMPEG = Path(C["ffmpeg"])
 FF_LOG = HERE / "live_ffmpeg.log"
 NOWIN = subprocess.CREATE_NO_WINDOW
-# 直播專用的 cloudflared 通道，只在直播時連上，停播就關，沒播時外面連不進來
+# 直播專用的 cloudflared 通道，控制頁開著就連著；沒開播時對方看到的是密碼頁與「還沒開始」
 CLOUDFLARED = Path(C["cloudflared"])
 TUNNEL_CFG = HERE / C["live_tunnel_config"]
 TUNNEL_LOG = HERE / "cloudflared-live.log"
@@ -101,7 +101,8 @@ class Live:
     def tunnel_up(self):
         return self.tunnel is not None and self.tunnel.poll() is None
 
-    def _start_tunnel(self):
+    def ensure_tunnel(self):
+        """通道跟著控制頁一直開著：對方先打開網址也看得到密碼頁與「還沒開播」，不會撞到 Cloudflare 錯誤頁。"""
         if not self.tunnel_up():
             self.tunnel = subprocess.Popen(
                 [str(CLOUDFLARED), "tunnel", "--config", str(TUNNEL_CFG), "--logfile", str(TUNNEL_LOG), "run"],
@@ -109,7 +110,7 @@ class Live:
 
     def start(self, quality, fps=None):
         self._kill()
-        self._start_tunnel()
+        self.ensure_tunnel()
         self.wanted, self.quality = True, quality
         if fps:
             self.fps = fps
@@ -122,13 +123,8 @@ class Live:
     def stop(self):
         self.wanted = False
         self._kill()
-        if self.tunnel_up():
-            self.tunnel.terminate()
-        self.tunnel = None
 
     def keepalive(self):
-        if self.wanted and not self.tunnel_up():
-            self._start_tunnel()
         if self.wanted and not self.running():
             self.start(self.quality)
             return True
