@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
+<title>投影開關</title>
+<style>
+  :root {
+    --bg: #f4f4f1; --card: #ffffff; --line: #e4e3de; --text: #1d1d1b; --sub: #73726c;
+    --seg: #ecebe6; --on: #1d1d1b; --on-text: #ffffff; --ok: #2f8f5b; --warn: #b4542c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a; --card: #1f2024; --line: #2d2e33; --text: #ecebe6; --sub: #9a9993;
+      --seg: #2a2b30; --on: #ecebe6; --on-text: #16171a; --ok: #5cc28a; --warn: #e48a62;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    padding: max(20px, env(safe-area-inset-top)) 16px 32px;
+  }
+  h1 { font-size: 22px; margin: 4px 4px 18px; font-weight: 700; letter-spacing: .02em; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 18px 16px; margin-bottom: 16px;
+  }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  h2 { font-size: 18px; margin: 0; font-weight: 650; }
+  .status { font-size: 14px; color: var(--sub); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sub); opacity: .5; }
+  .dot.on { background: var(--ok); opacity: 1; }
+  .msg { font-size: 14px; color: var(--warn); margin: 6px 0 0; min-height: 0; }
+  .msg:empty { display: none; }
+  .label { font-size: 14px; color: var(--sub); margin: 16px 0 8px; }
+  .seg { display: flex; background: var(--seg); border-radius: 12px; padding: 4px; gap: 4px; }
+  .seg button {
+    flex: 1; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px;
+    padding: 10px 4px; border-radius: 9px; cursor: pointer; transition: background .15s, color .15s;
+  }
+  .seg button.on { background: var(--on); color: var(--on-text); font-weight: 600; }
+  .seg button:disabled { opacity: .45; }
+  .big {
+    width: 100%; margin-top: 16px; border: 1px solid var(--line); background: transparent; color: var(--text);
+    font: inherit; font-weight: 600; padding: 13px; border-radius: 12px; cursor: pointer;
+  }
+  .big.primary { background: var(--on); color: var(--on-text); border-color: var(--on); }
+  .big:disabled { opacity: .5; }
+  .note { font-size: 13px; color: var(--sub); margin: 10px 2px 0; }
+  .offline { text-align: center; color: var(--warn); font-size: 14px; margin-bottom: 12px; }
+  .share { background: var(--seg); border-radius: 12px; padding: 10px 14px; font-size: 15px; }
+  .share div { display: flex; gap: 12px; padding: 3px 0; word-break: break-all; }
+  .share .k { color: var(--sub); flex: 0 0 auto; }
+  .share .pw { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .06em; font-weight: 600; }
+  .two { display: flex; gap: 10px; }
+  .two .big { margin-top: 10px; }
+  .offline:empty { display: none; }
+</style>
+</head>
+<body>
+<h1>投影開關</h1>
+<div class="offline" id="offline"></div>
+
+<section class="card">
+  <div class="head">
+    <h2>手機 → 電腦</h2>
+    <span class="status"><span class="dot" id="p2c-dot"></span><span id="p2c-status">—</span></span>
+  </div>
+  <p class="msg" id="p2c-msg"></p>
+
+  <div class="label">聲音從哪裡出</div>
+  <div class="seg" data-dir="p2c" data-key="audio">
+    <button data-v="pc">電腦</button><button data-v="phone">手機</button><button data-v="both">都出</button>
+  </div>
+
+  <div class="label">電腦能不能操作手機</div>
+  <div class="seg" data-dir="p2c" data-key="control">
+    <button data-v="true">可以操作</button><button data-v="false">只看</button>
+  </div>
+
+  <div class="label">視窗</div>
+  <div class="seg" data-dir="p2c" data-key="window">
+    <button data-v="normal">一般</button><button data-v="borderless">無邊框</button><button data-v="fullscreen">全螢幕</button>
+  </div>
+
+  <div class="label">永遠在最上層</div>
+  <div class="seg" data-dir="p2c" data-key="top">
+    <button data-v="true">置頂</button><button data-v="false">不置頂</button>
+  </div>
+
+  <button class="big primary" id="p2c-btn">開始投影</button>
+  <p class="note">手機要先開「無線偵錯」或插 USB。投影中改設定會自動重開視窗，位置大小不變。無邊框視窗拖不動，要移動就按 Win＋方向鍵；全螢幕按 Alt＋F 離開。</p>
+</section>
+
+<section class="card">
+  <div class="head">
+    <h2>電腦 → 手機</h2>
+    <span class="status"><span class="dot" id="c2p-dot"></span><span id="c2p-status">—</span></span>
+  </div>
+
+  <div class="label">聲音從哪裡出</div>
+  <div class="seg" data-dir="c2p" data-key="audio">
+    <button data-v="phone">手機</button><button data-v="pc">電腦</button><button data-v="both">都出</button>
+  </div>
+
+  <div class="label">手機能不能操作電腦</div>
+  <div class="seg" data-dir="c2p" data-key="control">
+    <button data-v="true">可以操作</button><button data-v="false">只看</button>
+  </div>
+  <p class="note">在 Moonlight 點電腦 → Desktop 開始看。麥克風的聲音只會送到手機。切換「操作」會重啟 Sunshine，串流會斷幾秒，要重新點一次。</p>
+</section>
+
+<section class="card">
+  <div class="head">
+    <h2>電腦 → 遠端直播</h2>
+    <span class="status"><span class="dot" id="live-dot"></span><span id="live-status">—</span></span>
+  </div>
+  <p class="note" style="margin-top:2px">給外地的人用瀏覽器看，會慢幾秒，不用裝 App。</p>
+
+  <div class="label">聲音從哪裡出</div>
+  <div class="seg" data-dir="live" data-key="audio">
+    <button data-v="remote">對方</button><button data-v="pc">電腦</button><button data-v="both">都放</button>
+  </div>
+
+  <div class="label">對方能不能操作電腦</div>
+  <div class="seg" data-dir="live" data-key="control">
+    <button data-v="true">可以操作</button><button data-v="false">只看</button>
+  </div>
+
+  <div class="label">畫質</div>
+  <div class="seg" data-dir="live" data-key="quality">
+    <button data-v="smooth">流暢</button><button data-v="hq">高畫質穩定</button>
+  </div>
+
+  <p class="note">流暢：720p，慢約 8 秒。高畫質穩定：1080p，網路差自動降到 720p，慢約 15 秒。</p>
+
+  <div class="label">每秒格數</div>
+  <div class="seg" data-dir="live" data-key="fps">
+    <button data-v="30">30 fps</button><button data-v="60">60 fps</button>
+  </div>
+  <p class="note">60 fps 動作更順，但多用約一半網路；對方網路不穩時選 30。直播中改畫質或格數，對方畫面會斷幾秒再接上。</p>
+
+  <div class="label">給對方的網址與密碼</div>
+  <div class="share">
+    <div><span class="k">網址</span><span id="live-url">—</span></div>
+    <div><span class="k">密碼</span><span id="live-pw" class="pw">—</span></div>
+  </div>
+  <div class="two">
+    <button class="big" id="live-copy">複製給對方</button>
+    <button class="big" id="live-newpw">換密碼</button>
+  </div>
+
+  <button class="big primary" id="live-btn">開始直播</button>
+  <p class="note">麥克風的聲音只會送給對方。換密碼後，已經在看的人要重新輸入。</p>
+</section>
+
+<script>
+let st = null;
+
+async function call(path, body) {
+  const r = await fetch(path, body === undefined ? {} : {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Panel': '1' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function render() {
+  if (!st) return;
+  document.querySelectorAll('.seg').forEach(seg => {
+    const cur = String(st[seg.dataset.dir][seg.dataset.key]);
+    seg.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('on', b.dataset.v === cur);
+      b.disabled = seg.dataset.dir === 'c2p' && seg.dataset.key === 'control' && st.c2p.busy;
+    });
+  });
+
+  const p = st.p2c;
+  const running = p.running;
+  document.getElementById('p2c-dot').classList.toggle('on', running);
+  document.getElementById('p2c-status').textContent =
+    p.busy ? '連線中…' : running ? ('投影中' + (p.via ? '・' + p.via : '')) : '沒在投';
+  document.getElementById('p2c-msg').textContent = p.busy ? '' : p.msg;
+  const btn = document.getElementById('p2c-btn');
+  btn.textContent = running ? '停止投影' : '開始投影';
+  btn.classList.toggle('primary', !running);
+  btn.disabled = p.busy;
+
+  const c = st.c2p;
+  document.getElementById('c2p-dot').classList.toggle('on', c.streaming);
+  document.getElementById('c2p-status').textContent =
+    c.busy ? '重啟 Sunshine…' : c.streaming ? '串流中' : '待機';
+
+  const l = st.live;
+  document.getElementById('live-dot').classList.toggle('on', l.running);
+  document.getElementById('live-status').textContent =
+    l.running ? ('直播中・' + l.viewers + ' 人在看') : '沒在播';
+  document.getElementById('live-url').textContent = l.url;
+  document.getElementById('live-pw').textContent = l.password;
+  const lb = document.getElementById('live-btn');
+  lb.textContent = l.running ? '停止直播' : '開始直播';
+  lb.classList.toggle('primary', !l.running);
+}
+
+function copyText(t) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
+  const ta = document.createElement('textarea');   // http 頁面沒有 clipboard API，用舊方法
+  ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  document.execCommand('copy'); ta.remove();
+  return Promise.resolve();
+}
+
+document.getElementById('live-copy').addEventListener('click', async e => {
+  if (!st) return;
+  await copyText('电脑直播：' + st.live.url + '\n密码：' + st.live.password);
+  e.target.textContent = '已複製';
+  setTimeout(() => { e.target.textContent = '複製給對方'; }, 1500);
+});
+document.getElementById('live-newpw').addEventListener('click', async () => {
+  if (!confirm('換密碼後，正在看的人要重新輸入。確定要換？')) return;
+  try { st = await call('/api/live/newpass', {}); render(); } catch (e) { refresh(); }
+});
+document.getElementById('live-btn').addEventListener('click', async () => {
+  const running = st && st.live.running;
+  try { st = await call(running ? '/api/live/stop' : '/api/live/start', {}); render(); } catch (e) { refresh(); }
+});
+
+async function refresh() {
+  try {
+    st = await call('/api/state');
+    document.getElementById('offline').textContent = '';
+    render();
+  } catch (e) {
+    document.getElementById('offline').textContent = '連不到電腦，確認手機的 Tailscale 有開';
+  }
+}
+
+document.querySelectorAll('.seg').forEach(seg => {
+  seg.addEventListener('click', async e => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    const { dir, key } = seg.dataset;
+    const v = (key === 'control' || key === 'top') ? b.dataset.v === 'true' : b.dataset.v;
+    if (st) { st[dir][key] = v; render(); }   // 先畫，回應再校正
+    try { st = await call('/api/' + dir, { [key]: v }); render(); } catch (e) { refresh(); }
+  });
+});
+
+document.getElementById('p2c-btn').addEventListener('click', async () => {
+  const running = st && st.p2c.running;
+  if (st) { st.p2c.busy = !running; render(); }
+  try { st = await call(running ? '/api/p2c/stop' : '/api/p2c/start', {}); render(); } catch (e) { refresh(); }
+});
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

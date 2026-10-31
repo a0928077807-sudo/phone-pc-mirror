@@ -1,0 +1,4 @@
+pycaw
+comtypes
+soundcard
+numpy

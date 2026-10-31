@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>电脑直播</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: #000; color: #ecebe6; }
+  body { font: 15px/1.5 system-ui, -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+  #wrap { position: relative; width: 100%; height: 56.25vw; max-height: 100vh; background: #000; }
+  #wrap:fullscreen { height: 100%; }
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #touch { position: absolute; inset: 0; touch-action: none; display: none; }
+  #touch.on { display: block; }
+  #start {
+    position: absolute; inset: 0; margin: auto; width: fit-content; height: fit-content;
+    font: inherit; font-size: 17px; font-weight: 600; padding: 14px 24px; border: 0; border-radius: 999px;
+    background: rgba(236,235,230,.92); color: #111; cursor: pointer;
+  }
+  #start[hidden] { display: none; }
+  .ping {
+    position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%;
+    border: 2px solid #fff; pointer-events: none; animation: ping .5s ease-out forwards;
+  }
+  .ping.r { border-color: #e48a62; }
+  @keyframes ping { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+  .bar { padding: 12px 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #status { color: #9a9993; font-size: 14px; flex: 1; min-width: 120px; }
+  button.sm {
+    font: inherit; font-size: 14px; padding: 8px 12px; border-radius: 10px;
+    border: 1px solid #2d2e33; background: #1c1d21; color: inherit; cursor: pointer;
+  }
+  #ctl { display: none; padding: 0 14px 18px; }
+  #ctl.on { display: block; }
+  .hint { color: #9a9993; font-size: 13px; margin: 0 0 10px; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .row input {
+    flex: 1; min-width: 0; font: inherit; padding: 9px 12px; border-radius: 10px;
+    border: 1px solid #2d2e33; background: #1c1d21; color: inherit; outline: none;
+  }
+  .row button.sm { flex: 1; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <video id="v" playsinline webkit-playsinline></video>
+  <div id="touch"></div>
+  <button id="start">点一下开始播放</button>
+</div>
+
+<div class="bar">
+  <span id="status">连接中…</span>
+  <button class="sm" id="fs">全屏</button>
+</div>
+
+<div id="ctl">
+  <p class="hint">可以操作电脑：点画面＝左键，长按＝右键。画面会慢几秒，点完等一下。</p>
+  <div class="row">
+    <input id="txt" placeholder="要打的字" autocomplete="off">
+    <button class="sm" id="send" style="flex:0 0 auto">送出</button>
+  </div>
+  <div class="row">
+    <button class="sm" data-key="enter">回车</button>
+    <button class="sm" data-key="backspace">删除</button>
+    <button class="sm" data-key="esc">Esc</button>
+  </div>
+  <div class="row">
+    <button class="sm" data-scroll="1">↑ 往上滚</button>
+    <button class="sm" data-scroll="-1">↓ 往下滚</button>
+  </div>
+</div>
+
+<script src="/hls.min.js"></script>
+<script>
+const v = document.getElementById('v');
+const statusEl = document.getElementById('status');
+const startBtn = document.getElementById('start');
+let hls = null, wanted = false, live = false, attached = false;
+
+function attach() {
+  attached = true;
+  const src = '/hls/index.m3u8';
+  if (window.Hls && Hls.isSupported()) {
+    if (hls) hls.destroy();
+    // 穩定優先：落後直播 3 段、往前多緩衝；畫質層由 hls.js 依網速自動選
+    hls = new Hls({ liveSyncDurationCount: 3, maxBufferLength: 60, maxMaxBufferLength: 120, backBufferLength: 10 });
+    hls.on(Hls.Events.ERROR, (_, d) => {
+      if (!d.fatal) return;
+      if (d.type === Hls.ErrorTypes.MEDIA_ERROR) { hls.recoverMediaError(); return; }
+      setTimeout(() => { attached = false; if (live) attach(); }, 2000);
+    });
+    hls.loadSource(src);
+    hls.attachMedia(v);
+  } else {
+    v.src = src;   // iPhone Safari 原生支援 HLS
+  }
+  if (wanted) v.play().catch(() => {});
+}
+
+startBtn.addEventListener('click', () => {
+  wanted = true;
+  startBtn.hidden = true;
+  if (!attached && live) attach();
+  v.muted = false;
+  v.play().catch(() => {});
+});
+
+v.addEventListener('playing', () => { statusEl.textContent = '正在播放（会比电脑慢几秒）'; });
+v.addEventListener('waiting', () => { if (live) statusEl.textContent = '缓冲中…'; });
+
+async function poll() {
+  try {
+    const r = await fetch('/api/info', { cache: 'no-store' });
+    if (r.status === 401) { location.reload(); return; }
+    const info = await r.json();
+    if (info.live && !live) { live = true; if (wanted) attach(); }
+    if (!info.live) {
+      live = false; attached = false;
+      if (hls) { hls.destroy(); hls = null; }
+      statusEl.textContent = '直播还没开始，开了会自动出现';
+    } else if (!wanted) {
+      statusEl.textContent = '直播中，点画面上的按钮开始';
+    }
+    document.getElementById('ctl').classList.toggle('on', info.control);
+    document.getElementById('touch').classList.toggle('on', info.control && wanted);
+  } catch (_) {
+    statusEl.textContent = '网络不稳，重连中…';
+  }
+}
+poll();
+setInterval(poll, 3000);
+
+document.getElementById('fs').addEventListener('click', () => {
+  const w = document.getElementById('wrap');
+  if (w.requestFullscreen) {
+    document.fullscreenElement ? document.exitFullscreen() : w.requestFullscreen().catch(() => {});
+    if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+  } else if (v.webkitEnterFullscreen) {
+    v.webkitEnterFullscreen();   // iPhone 只能全屏 video，本身不能操作
+  }
+});
+
+// ---- 操作 ----
+function send(ev) {
+  return fetch('/api/input', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+}
+
+function toVideo(cx, cy) {
+  const r = v.getBoundingClientRect();
+  const vw = v.videoWidth || 16, vh = v.videoHeight || 9;
+  const s = Math.min(r.width / vw, r.height / vh);
+  const w = vw * s, h = vh * s;
+  const ox = r.left + (r.width - w) / 2, oy = r.top + (r.height - h) / 2;
+  const x = (cx - ox) / w, y = (cy - oy) / h;
+  return (x < 0 || x > 1 || y < 0 || y > 1) ? null : { x, y };
+}
+
+function ping(cx, cy, right) {
+  const wr = document.getElementById('wrap').getBoundingClientRect();
+  const d = document.createElement('div');
+  d.className = 'ping' + (right ? ' r' : '');
+  d.style.left = (cx - wr.left) + 'px';
+  d.style.top = (cy - wr.top) + 'px';
+  document.getElementById('wrap').appendChild(d);
+  setTimeout(() => d.remove(), 600);
+}
+
+const touch = document.getElementById('touch');
+let pressTimer = null, downAt = null, longDone = false;
+touch.addEventListener('pointerdown', e => {
+  downAt = { x: e.clientX, y: e.clientY };
+  longDone = false;
+  pressTimer = setTimeout(() => {
+    const p = toVideo(downAt.x, downAt.y);
+    if (p) { longDone = true; ping(downAt.x, downAt.y, true); send({ type: 'right', ...p }); }
+  }, 550);
+});
+touch.addEventListener('pointerup', e => {
+  clearTimeout(pressTimer);
+  if (longDone || !downAt) return;
+  if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 12) return;
+  const p = toVideo(e.clientX, e.clientY);
+  if (p) { ping(e.clientX, e.clientY, false); send({ type: 'click', ...p }); }
+  downAt = null;
+});
+touch.addEventListener('pointercancel', () => clearTimeout(pressTimer));
+touch.addEventListener('contextmenu', e => e.preventDefault());
+
+document.getElementById('send').addEventListener('click', () => {
+  const t = document.getElementById('txt');
+  if (!t.value) return;
+  send({ type: 'text', text: t.value });
+  t.value = '';
+});
+document.querySelectorAll('[data-key]').forEach(b =>
+  b.addEventListener('click', () => send({ type: 'key', key: b.dataset.key })));
+document.querySelectorAll('[data-scroll]').forEach(b =>
+  b.addEventListener('click', () => send({ type: 'scroll', dy: Number(b.dataset.scroll) * 3 })));
+</script>
+</body>
+</html>

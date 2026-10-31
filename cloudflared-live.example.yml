@@ -1,0 +1,8 @@
+# 直播專用通道。建立方式見 README「遠端直播」。複製成 cloudflared-live.yml 再改。
+tunnel: <你的通道 ID>
+credentials-file: C:\Users\you\.cloudflared\<你的通道 ID>.json
+
+ingress:
+  - hostname: live.example.com
+    service: http://127.0.0.1:47381
+  - service: http_status:404

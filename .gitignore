@@ -1,0 +1,12 @@
+# 個人設定與執行時產生的東西
+config.json
+settings.json
+last_port.json
+cloudflared-live.yml
+*.log
+install.log
+live/hls/
+live/hls.min.js
+bin/
+downloads/
+__pycache__/

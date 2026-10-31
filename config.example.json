@@ -1,0 +1,17 @@
+{
+  "panel_host": "100.x.y.z",
+  "panel_port": 47380,
+  "phone_tailscale_ip": "100.x.y.z",
+  "window_title": "Phone",
+  "scrcpy": "C:\\Users\\you\\Apps\\scrcpy-win64-v5.0.1\\scrcpy.exe",
+  "ffmpeg": "C:\\Users\\you\\Apps\\ffmpeg\\ffmpeg.exe",
+  "cloudflared": "C:\\Users\\you\\Apps\\cloudflared\\cloudflared.exe",
+  "live_port": 47381,
+  "live_public_url": "https://live.example.com",
+  "live_tunnel_config": "cloudflared-live.yml",
+  "sunshine_url": "https://localhost:47990",
+  "sunshine_user": "填 setup.ps1 產生的帳號",
+  "sunshine_password": "填 setup.ps1 產生的密碼",
+  "mic_id": "",
+  "live_audio_delay_ms": 100
+}
