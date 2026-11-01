@@ -40,9 +40,10 @@ NAMES = {"usb": "USB", "wifi": "Wi-Fi", "ts": "Tailscale"}
 
 
 def adb(*args, timeout=10):
-    r = subprocess.run([str(ADB), *args], capture_output=True, text=True,
+    # adb 的錯誤訊息可能帶 UTF-8 中文；不指定編碼時 Windows 用 cp950 解碼失敗，stdout 會變 None
+    r = subprocess.run([str(ADB), *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
                        timeout=timeout, creationflags=subprocess.CREATE_NO_WINDOW)
-    return r.stdout + r.stderr
+    return (r.stdout or "") + (r.stderr or "")
 
 
 def devices():

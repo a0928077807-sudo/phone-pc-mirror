@@ -279,7 +279,7 @@ def p2c_start():
             mirror.adb("start-server")
             kind, serial = mirror.pick("auto")
             if not serial:
-                p2c["msg"] = "找不到手機：請開「無線偵錯」或插 USB"
+                p2c["msg"] = "找不到手機：請開「無線偵錯」（手機要連 Wi-Fi 才開得起來，用行動網路時請插 USB）"
                 return
             with lock:
                 opts = dict(settings["p2c"])
