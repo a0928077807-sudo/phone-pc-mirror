@@ -133,6 +133,7 @@ class Forwarder:
     def __init__(self):
         self.thread = None
         self.source = None
+        self.failed_at = 0
         self.stop_flag = threading.Event()
 
     def running(self):
@@ -143,6 +144,8 @@ class Forwarder:
             if self.source == speaker_id:
                 return
             self.stop()   # 使用者換了輸出裝置（例如改用耳機），改抓新的那個
+        elif self.source == speaker_id and time.time() - self.failed_at < 10:
+            return        # 剛失敗過，別每秒重試洗版
         self.source = speaker_id
         self.stop_flag.clear()
         self.thread = threading.Thread(target=self._run, args=(speaker_id,), daemon=True)
@@ -156,6 +159,7 @@ class Forwarder:
             log.info("forwarder stop")
 
     def _run(self, speaker_id):
+        comtypes.CoInitialize()   # 每條新執行緒都要先初始化 COM，不然 soundcard 回 0x800401f0
         import soundcard as sc
         try:
             src = sc.get_microphone(speaker_id, include_loopback=True)
@@ -168,6 +172,7 @@ class Forwarder:
                         break
                     play.play(data)
         except Exception:
+            self.failed_at = time.time()
             log.exception("forwarder failed")
 
 
