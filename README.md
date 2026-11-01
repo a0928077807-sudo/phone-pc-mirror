@@ -59,6 +59,10 @@ pip install -r requirements.txt
 
 手機投電腦也可以不開控制頁，直接 `python mirror.py`（會照控制頁存的設定開）。
 
+**用行動網路也想投：** Android 的「無線偵錯」一離開 Wi-Fi 就會自動關。所以第一次在 Wi-Fi 下用無線方式連上時，
+程式會順便執行 `adb tcpip 5555`，把手機切成固定埠的舊式 TCP 模式（手機會跳「允許 USB 偵錯」，按允許）。
+之後切到 4G／5G，只要 Tailscale 開著還是連得到；手機重開機後失效，要再在 Wi-Fi 下連一次。
+
 ## 第一次用 Moonlight
 
 手機裝 [Moonlight](https://github.com/moonlight-stream/moonlight-android)，按「＋」輸入電腦的 Tailscale IP。

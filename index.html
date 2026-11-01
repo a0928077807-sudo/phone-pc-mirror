@@ -184,7 +184,7 @@ function render() {
   document.getElementById('p2c-dot').classList.toggle('on', running);
   document.getElementById('p2c-status').textContent =
     p.busy ? '連線中…' : running ? ('投影中' + (p.via ? '・' + p.via : '')) : '沒在投';
-  document.getElementById('p2c-msg').textContent = p.busy ? '' : p.msg;
+  document.getElementById('p2c-msg').textContent = p.msg;
   const btn = document.getElementById('p2c-btn');
   btn.textContent = running ? '停止投影' : '開始投影';
   btn.classList.toggle('primary', !running);

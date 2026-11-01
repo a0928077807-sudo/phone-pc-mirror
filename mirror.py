@@ -18,6 +18,8 @@ ADB = SCRCPY.with_name("adb.exe") if C["scrcpy"] else Path("adb")   # 用 scrcpy
 TS_IP = C["phone_tailscale_ip"]     # 手機的 Tailscale IP，留空就不走這條
 STATE = HERE / "last_port.json"     # 記住上次的無線偵錯埠，下次先試
 LOG = HERE / "scrcpy.log"
+FIXED_PORT = 5555   # 舊式 adb tcpip 模式：手機離開 Wi-Fi 也不會關，到重開機前有效
+status = print      # 進度訊息；控制頁會換成自己的，顯示在頁面上
 SETTINGS = HERE / "settings.json"   # 控制頁存的開關，捷徑與控制頁共用
 DEFAULTS = {
     # 手機投電腦：聲音 pc/phone/both、電腦能不能操作手機、視窗 normal/borderless/fullscreen、置頂
@@ -102,12 +104,54 @@ async def _scan(ip, lo, hi):
     return sorted(found)
 
 
+def state_of(serial):
+    return next((st for s, st in devices() if s == serial), None)
+
+
+def fixed_addr():
+    return f"{TS_IP}:{FIXED_PORT}" if TS_IP else None
+
+
+def try_fixed():
+    """先試固定埠：之前切過 tcpip 模式的話，用 5G 也連得到，而且不用掃埠。"""
+    addr = fixed_addr()
+    if not addr:
+        return None
+    adb("connect", addr, timeout=8)
+    return addr if ready(addr) else None
+
+
+def enable_fixed(serial):
+    """無線偵錯（Android 11+）一離開 Wi-Fi 就會關。趁現在連著，把 adbd 切成固定 5555 埠的舊式 TCP 模式，
+    之後切到行動網路，只要 Tailscale 開著還是連得到。第一次手機會跳「允許 USB 偵錯」要按允許。"""
+    addr = fixed_addr()
+    if not addr or serial == addr:
+        return serial
+    status("切換成固定連接埠，之後用 5G 也能投…")
+    adb("-s", serial, "tcpip", str(FIXED_PORT), timeout=15)
+    for i in range(40):
+        time.sleep(1)
+        adb("connect", addr, timeout=8)
+        st = state_of(addr)
+        if st == "device":
+            status("")
+            return addr
+        if st == "unauthorized" and i % 5 == 0:
+            status("請在手機上按「允許」（勾選一律允許這台電腦）")
+    # 切換過程 adbd 重啟，原本的無線偵錯連線多半斷了，試著接回去
+    status("固定連接埠沒成功，這次先用一般方式")
+    adb("connect", serial, timeout=8)
+    return serial if ready(serial) else None
+
+
 def find_ts():
     if not TS_IP:
         return None
     for s, st in devices():
         if st == "device" and kind_of(s) == "ts":
             return s
+    if addr := try_fixed():
+        return addr
 
     def try_port(p):
         addr = f"{TS_IP}:{p}"
@@ -120,7 +164,7 @@ def find_ts():
     last = json.loads(STATE.read_text())["port"] if STATE.exists() else None
     if last and (addr := try_port(last)):
         return addr
-    print("  掃描無線偵錯埠（約半分鐘）…")
+    status("掃描無線偵錯埠（約一分鐘）…")
     for p in asyncio.run(_scan(TS_IP, 32768, 61000)):
         if p != last and (addr := try_port(p)):
             return addr
@@ -147,10 +191,15 @@ def pick(mode):
     order = ["usb", "wifi", "ts"] if mode == "auto" else [mode]
     finders = {"usb": find_usb, "wifi": find_wifi, "ts": find_ts}
     for k in order:
-        print(f"找手機：{NAMES[k]}…")
+        status(f"找手機：{NAMES[k]}…")
         s = finders[k]()
         if s:
-            return k, s
+            if k in ("wifi", "ts"):          # 走無線就順便切固定埠，下次用 5G 也連得到
+                s = enable_fixed(s)
+                if s and s == fixed_addr():
+                    k = "ts"
+            if s:
+                return k, s
     return None, None
 
 

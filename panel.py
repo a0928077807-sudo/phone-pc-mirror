@@ -254,6 +254,7 @@ def watcher():
 # ---------- 手機投電腦 ----------
 
 p2c = {"proc": None, "busy": False, "msg": "", "via": ""}
+mirror.status = lambda m: p2c.update(msg=m)   # 找手機的進度（例如「請在手機上按允許」）顯示在控制頁
 
 
 def scrcpy_running():
