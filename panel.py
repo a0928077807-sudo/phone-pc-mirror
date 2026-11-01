@@ -65,8 +65,7 @@ for _k, _v in {"audio": "remote", "control": False, "quality": "smooth", "fps": 
     _lv.setdefault(_k, _v)
 if _lv["quality"] not in livemod.QUALITY:   # 舊版的 "sharp" 已改名
     _lv["quality"] = "smooth"
-if not _lv.get("password"):
-    _lv["password"] = livemod.new_password()
+_lv.pop("password", None)   # 舊版的固定密碼，改成由 secret 算的動態密碼
 _lv.setdefault("secret", livemod.secrets.token_hex(16))
 mirror.save_settings(settings)
 live = livemod.Live()
@@ -309,7 +308,8 @@ def state():
         "p2c": {**s["p2c"], "running": scrcpy_running(), "busy": p2c["busy"],
                 "msg": p2c["msg"], "via": p2c["via"]},
         "c2p": {**s["c2p"], "streaming": sun_streaming(), "busy": c2p_busy[0]},
-        "live": {k: s["live"][k] for k in ("audio", "control", "quality", "fps", "password")}
+        "live": {k: s["live"][k] for k in ("audio", "control", "quality", "fps")}
+                | {"password": livemod.current_password(s["live"]), "pw_left": livemod.password_seconds_left()}
                 | {"running": live.running(), "viewers": live.viewers(), "url": C["live_public_url"]},
     }
 
@@ -393,10 +393,13 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/live/stop":
             live.stop()
             log.info("live stop")
-        elif self.path == "/api/live/newpass":
+        elif self.path == "/api/live/kick":   # 換 secret：所有人登出，密碼也跟著全換
             with lock:
-                settings["live"]["password"] = livemod.new_password()
+                settings["live"]["secret"] = livemod.secrets.token_hex(16)
                 mirror.save_settings(settings)
+            with live.lock:
+                live.sessions.clear()
+            log.info("live kick all")
         elif self.path == "/api/live":
             with lock:
                 lv = settings["live"]

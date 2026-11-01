@@ -146,15 +146,15 @@
   <div class="label">給對方的網址與密碼</div>
   <div class="share">
     <div><span class="k">網址</span><span id="live-url">—</span></div>
-    <div><span class="k">密碼</span><span id="live-pw" class="pw">—</span></div>
+    <div><span class="k">密碼</span><span><span id="live-pw" class="pw">—</span> <span id="live-pwleft" class="k"></span></span></div>
   </div>
   <div class="two">
     <button class="big" id="live-copy">複製給對方</button>
-    <button class="big" id="live-newpw">換密碼</button>
+    <button class="big" id="live-kick">踢掉所有人</button>
   </div>
 
   <button class="big primary" id="live-btn">開始直播</button>
-  <p class="note">麥克風的聲音只會送給對方。換密碼後，已經在看的人要重新輸入。</p>
+  <p class="note">密碼每 5 分鐘自動換一組，上一組多寬限 5 分鐘；已經在看的人不受影響。要讓所有人重新輸入，按「踢掉所有人」。麥克風的聲音只會送給對方。</p>
 </section>
 
 <script>
@@ -201,6 +201,8 @@ function render() {
     l.running ? ('直播中・' + l.viewers + ' 人在看') : '沒在播';
   document.getElementById('live-url').textContent = l.url;
   document.getElementById('live-pw').textContent = l.password;
+  pwDeadline = Date.now() + l.pw_left * 1000;
+  tickPw();
   const lb = document.getElementById('live-btn');
   lb.textContent = l.running ? '停止直播' : '開始直播';
   lb.classList.toggle('primary', !l.running);
@@ -217,14 +219,24 @@ function copyText(t) {
 
 document.getElementById('live-copy').addEventListener('click', async e => {
   if (!st) return;
-  await copyText('电脑直播：' + st.live.url + '\n密码：' + st.live.password);
+  await copyText('电脑直播：' + st.live.url + '\n密码：' + st.live.password +
+                 '（' + Math.ceil(st.live.pw_left / 60 + 5) + ' 分钟内有效）');
   e.target.textContent = '已複製';
   setTimeout(() => { e.target.textContent = '複製給對方'; }, 1500);
 });
-document.getElementById('live-newpw').addEventListener('click', async () => {
-  if (!confirm('換密碼後，正在看的人要重新輸入。確定要換？')) return;
-  try { st = await call('/api/live/newpass', {}); render(); } catch (e) { refresh(); }
+document.getElementById('live-kick').addEventListener('click', async () => {
+  if (!confirm('所有正在看的人都會被登出，密碼也會整組換掉。確定？')) return;
+  try { st = await call('/api/live/kick', {}); render(); } catch (e) { refresh(); }
 });
+
+let pwDeadline = 0;
+function tickPw() {   // 密碼倒數每秒自己算，歸零就跟伺服器要新密碼
+  const s = Math.max(0, Math.round((pwDeadline - Date.now()) / 1000));
+  document.getElementById('live-pwleft').textContent =
+    '（' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' 後換）';
+  if (s === 0 && pwDeadline) { pwDeadline = 0; refresh(); }
+}
+setInterval(tickPw, 1000);
 document.getElementById('live-btn').addEventListener('click', async () => {
   const running = st && st.live.running;
   try { st = await call(running ? '/api/live/stop' : '/api/live/start', {}); render(); } catch (e) { refresh(); }

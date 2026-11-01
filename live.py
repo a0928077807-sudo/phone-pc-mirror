@@ -80,8 +80,30 @@ def kill_strays():
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], creationflags=NOWIN, timeout=30)
 
 
-def new_password():
-    return "".join(secrets.choice("abcdefghjkmnpqrstuvwxyz23456789") for _ in range(8))
+PW_PERIOD = 300   # 動態密碼每 5 分鐘換一組
+PW_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"   # 去掉 i l o 0 1 這種容易看錯的
+
+
+def _password_at(secret, window):
+    """由 secret 與時間窗算出那 5 分鐘的密碼（跟 TOTP 同一個道理，不用存）。"""
+    d = hmac.new(secret.encode(), f"pw:{window}".encode(), hashlib.sha256).digest()
+    return "".join(PW_CHARS[b % len(PW_CHARS)] for b in d[:6])
+
+
+def current_password(s, now=None):
+    return _password_at(s["secret"], int((now or time.time()) // PW_PERIOD))
+
+
+def password_seconds_left(now=None):
+    now = now or time.time()
+    return int(PW_PERIOD - now % PW_PERIOD)
+
+
+def password_ok(s, pw, now=None):
+    """這一組或上一組都收：密碼剛換時對方可能還在輸入舊的。"""
+    w = int((now or time.time()) // PW_PERIOD)
+    pw = str(pw).strip().lower()
+    return any(hmac.compare_digest(pw, _password_at(s["secret"], x)) for x in (w, w - 1))
 
 
 class Live:
@@ -222,12 +244,13 @@ def do_input(ev):
 # ---------- 觀看端 HTTP ----------
 
 def _sign(s, vid):
-    """cookie＝觀看者 id.簽章；簽章綁密碼，換密碼所有人自動登出，服務重開不必重登。"""
-    return hmac.new(s["secret"].encode(), f"{vid}:{s['password']}".encode(), hashlib.sha256).hexdigest()[:32]
+    """cookie＝觀看者 id.簽章。簽章只綁 secret 不綁密碼：密碼每 5 分鐘換，已經進來的人不會被踢；
+    要踢掉所有人就換 secret（控制頁「踢掉所有人」）。服務重開不必重登。"""
+    return hmac.new(s["secret"].encode(), f"session:{vid}".encode(), hashlib.sha256).hexdigest()[:32]
 
 
 def make_handler(live, get_settings):
-    """get_settings() 回傳 settings["live"]（含 password、secret、control）。"""
+    """get_settings() 回傳 settings["live"]（含 secret、control）。"""
 
     class ViewerHandler(BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -288,8 +311,7 @@ def make_handler(live, get_settings):
                     live.fails[ip] = recent
                 if len(recent) >= 5:
                     return self._send(429, {"error": "錯太多次，五分鐘後再試"})
-                if secrets.compare_digest(str(body.get("password", "")).strip().lower(),
-                                          get_settings()["password"]):
+                if password_ok(get_settings(), body.get("password", "")):
                     vid = secrets.token_hex(8)
                     tok = f"{vid}.{_sign(get_settings(), vid)}"
                     with live.lock:
