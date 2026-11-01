@@ -132,6 +132,7 @@ class Forwarder:
 
     def __init__(self):
         self.thread = None
+        self.source = None
         self.stop_flag = threading.Event()
 
     def running(self):
@@ -139,7 +140,10 @@ class Forwarder:
 
     def start(self, speaker_id):
         if self.running():
-            return
+            if self.source == speaker_id:
+                return
+            self.stop()   # 使用者換了輸出裝置（例如改用耳機），改抓新的那個
+        self.source = speaker_id
         self.stop_flag.clear()
         self.thread = threading.Thread(target=self._run, args=(speaker_id,), daemon=True)
         self.thread.start()
@@ -202,6 +206,11 @@ def audio_tick():
             elif cur == CABLE:                  # 串流斷了卻卡在 CABLE（Sunshine 當掉之類）
                 svv("/SetDefault", pc, "all")
             return
+        # 串流中使用者自己換了輸出裝置（例如改用耳機）：記下來當新的電腦喇叭，不要硬切回去
+        if cur != CABLE and cur != pc:
+            settings["pc_speaker"] = pc = cur
+            mirror.save_settings(settings)
+            log.info("pc speaker changed during stream -> %s", cur)
     if mode == "phone":          # 只給對方：電腦聲音全進 CABLE，喇叭不出聲
         fwd.stop()
         set_listen(True)
